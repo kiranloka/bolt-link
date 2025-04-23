@@ -1,5 +1,5 @@
 {
-  "name": "my-turborepo",
+  "name": "bolt-link",
   "private": true,
   "scripts": {
     "build": "turbo run build",
