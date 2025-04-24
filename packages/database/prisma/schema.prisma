@@ -12,3 +12,182 @@ datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
+
+model User {
+  id           Int     @id @default(autoincrement())
+  clerkId      String? @unique
+  email        String  @unique
+  name         String?
+  password     String?
+  profileImage String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  LocalGoogleCredential LocalGoogleCredential?
+  Slack                 Slack[]
+  Notion                Notion[]
+  DiscordWebhook        DiscordWebhook[]
+  Connections           Connections[]
+
+  zaps      Zap[]
+  workflows Workflows[]
+}
+
+model LocalGoogleCredential {
+  id          String  @id @default(uuid())
+  accessToken String  @unique
+  ChannelId   String  @unique @default(uuid())
+  pageToken   String?
+  folderId    String?
+  subscribed  Boolean @default(false)
+
+  userId Int  @unique
+  user   User @relation(fields: [userId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Slack {
+  id               String @id @default(uuid())
+  appId            String
+  teamId           String
+  teamName         String
+  botUserId        String
+  slackAccessToken String @unique
+  authedUserId     String
+  authedUserToken  String @unique
+
+  userId Int
+  user   User @relation(fields: [userId], references: [id])
+
+  connections Connections[]
+}
+
+model Notion {
+  id            String @id @default(uuid())
+  accessToken   String @unique
+  workspaceId   String @unique
+  databaseId    String @unique
+  workspaceName String
+  workspaceIcon String
+
+  userId Int
+  user   User @relation(fields: [userId], references: [id])
+
+  connections Connections[]
+}
+
+model DiscordWebhook {
+  id        String @id @default(uuid())
+  webhookId String @unique
+  url       String @unique
+  name      String
+  guildId   String
+  channelId String @unique
+  guildName String
+
+  userId Int
+  user   User @relation(references: [id], fields: [userId])
+
+  connections Connections[]
+}
+
+model Connections {
+  id               String  @id @default(uuid())
+  type             String
+  discordWebhookId String?
+  slackId          String?
+  notionId         String?
+  userId           Int?
+
+  DiscordWebhook DiscordWebhook? @relation(fields: [discordWebhookId], references: [id])
+  Slack          Slack?          @relation(fields: [slackId], references: [id])
+  Notion         Notion?         @relation(fields: [notionId], references: [id])
+  user           User?           @relation(fields: [userId], references: [id])
+}
+
+model Zap {
+  id        String @id @default(uuid())
+  name      String
+  userId    Int
+  triggerId String
+
+  trigger Trigger?
+  actions Action[]
+  zapRuns ZapRun[]
+  user    User     @relation(fields: [userId], references: [id])
+}
+
+model Trigger {
+  id        String @id @default(uuid())
+  zapId     String @unique
+  triggerId String
+  metadata  Json   @default("{}")
+
+  type AvaliableTrigger @relation(fields: [triggerId], references: [id])
+  zap  Zap              @relation(fields: [zapId], references: [id])
+}
+
+model Action {
+  id           String @id @default(uuid())
+  zapId        String
+  actionId     String
+  metadata     Json   @default("{}")
+  sortingOrder Int    @default(0)
+
+  type AvailableAction @relation(fields: [actionId], references: [id])
+  zap  Zap             @relation(fields: [zapId], references: [id])
+}
+
+model AvailableAction {
+  id      String   @id @default(uuid())
+  name    String
+  image   String
+  actions Action[]
+}
+
+model AvaliableTrigger {
+  id       String    @id @default(uuid())
+  name     String
+  image    String
+  triggers Trigger[]
+}
+
+model ZapRun {
+  id       String @id @default(uuid())
+  zapId    String
+  metadata Json
+
+  zap          Zap           @relation(fields: [zapId], references: [id])
+  zapRunOutbox ZapRunOutbox?
+}
+
+model ZapRunOutbox {
+  id       String @id @default(uuid())
+  zapRunId String @unique
+
+  zapRun ZapRun @relation(fields: [zapRunId], references: [id])
+}
+
+model Workflows {
+  id                String   @id @default(uuid())
+  name              String
+  nodes             String?
+  edges             String?
+  description       String
+  discordTemplate   String?
+  notionTemplate    String?
+  slackTemplate     String?
+  slackChannels     String[]
+  slackAccessToken  String?
+  NotionAccessToken String?
+  notionDbId        String?
+  flowPath          String?
+  cronPath          String?
+  publish           Boolean? @default(false)
+
+  userId Int
+  user   User @relation(fields: [userId], references: [id])
+}
