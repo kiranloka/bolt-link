@@ -2,7 +2,7 @@ import { Request, Response } from "express";
 import axios from "axios";
 import { prisma } from "@repo/database/prisma";
 import { URLSearchParams } from "url";
-
+import { Client as NotionClient } from "@notionhq/client";
 interface AuthenticatedRequest extends Request {
   user?: {
     userId: string;
@@ -83,5 +83,103 @@ export const discordCallBack = async (
   } catch (e) {
     console.log(e);
     return res.status(500).json({ message: "internal server error!" });
+  }
+};
+
+export const notionCallback = async (
+  req: AuthenticatedRequest,
+  res: Response
+) => {
+  const code = req.query.code as string;
+  const user = req.user?.userId;
+
+  if (!code) {
+    return res.status(400).json({ messge: "No code provided!" });
+  }
+  if (!user) {
+    return res.status(411).json({ message: "No user found!" });
+  }
+
+  try {
+    const encoded = Buffer.from(
+      `${process.env.NOTION_CLIENT_ID}:${process.env.NOTION_API_SECRET}`
+    ).toString("base64");
+
+    const response = await axios.post(
+      "https://api.notion.com/v1/oauth/token",
+      {
+        grant_type: "authorization_code",
+        code,
+        redirect_url: process.env.NOTION_REDIRECT_URL,
+      },
+      {
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Basic ${encoded}`,
+          "Notion-Version": "2022-06-28",
+        },
+      }
+    );
+    const { access_token, workspace_name, workspace_icon, workspace_id } =
+      response.data;
+    if (!access_token) {
+      return res.redirect(
+        process.env.FRONTEND_URL || "http://localhost:3000/connections"
+      );
+    }
+    const notion = new NotionClient({ auth: access_token });
+
+    const databasePages = await notion.search({
+      filter: {
+        value: "database",
+        property: "object",
+      },
+      sort: {
+        direction: "ascending",
+        timestamp: "last_edited_time",
+      },
+    });
+
+    const databaseId = databasePages?.results?.length
+      ? databasePages.results[0].id
+      : "";
+
+    const notionConnection = await prisma.notion.create({
+      data: {
+        accessToken: access_token,
+        workspaceId: workspace_id,
+        databaseId,
+        workspace_name: workspace_name,
+        workspace_icon: workspace_icon || "",
+        userId: parseInt(user),
+      },
+    });
+    const redirectUrl = new URL(
+      process.env.FRONTEND_URL || "http://localhost:3000/connections"
+    );
+    redirectUrl.searchParams.append(
+      "access_token",
+      notionConnection.accessToken
+    );
+    redirectUrl.searchParams.append(
+      "workspace_name",
+      notionConnection.workspaceName
+    );
+    redirectUrl.searchParams.append(
+      "workspace_icon",
+      notionConnection.workspaceIcon
+    );
+    redirectUrl.searchParams.append(
+      "workspace_id",
+      notionConnection.workspaceId
+    );
+    redirectUrl.searchParams.append("database_id", notionConnection.databaseId);
+
+    return res.redirect(redirectUrl.toString());
+  } catch (error) {
+    console.error("Notion OAuth Error", error);
+    return res.redirect(
+      `${process.env.FRONTEND_URL}` || "http://localhost:3000/connections"
+    );
   }
 };
