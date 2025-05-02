@@ -183,3 +183,83 @@ export const notionCallback = async (
     );
   }
 };
+
+export const slackCallback = async (
+  req: AuthenticatedRequest,
+  res: Response
+) => {
+  const code = req.query.code as string;
+  const user = req.user?.userId;
+
+  if (!user) {
+    return res.status(401).json({ message: "No user found!" });
+  }
+  if (!code) {
+    return res.redirect(
+      `${process.env.FRONTEND_URL}` || "http://localhost:3000/connections"
+    );
+  }
+
+  try {
+    const response = await axios.post(
+      "https://slack.com/api/oauth.v2.access",
+      new URLSearchParams({
+        code,
+        client_id: process.env.SLACK_CLIENT_ID!,
+        client_secret: process.env.SLACK_CLIENT_SECRET!,
+        redirect_url: process.env.SLACK_REDIRECT_URL!,
+      }),
+      {
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+        },
+      }
+    );
+
+    const data = response.data;
+
+    if (!data.ok) {
+      throw new Error(data.error || "Slack OAuth failed");
+    }
+
+    const { app_id, authed_user, access_token, bot_user_id, team } = data;
+
+    const slackConnection = await prisma.slack.create({
+      data: {
+        appId: app_id,
+        teamId: team.id,
+        teamName: team.name,
+        botUserId: bot_user_id,
+        slackAccessToken: access_token,
+        authedUserId: authed_user.id,
+        authedUserToken: authed_user.access_token,
+        userId: parseInt(user),
+      },
+    });
+
+    const redirectUrl = new URL(
+      process.env.FRONTEND_URL || "http://localhost:3000/connections"
+    );
+    redirectUrl.searchParams.append("app_id", slackConnection.appId);
+    redirectUrl.searchParams.append("team_id", slackConnection.teamId);
+    redirectUrl.searchParams.append("team_name", slackConnection.teamName);
+    redirectUrl.searchParams.append("bot_user_id", slackConnection.botUserId);
+    redirectUrl.searchParams.append(
+      "authed_user_id",
+      slackConnection.authedUserId
+    );
+    redirectUrl.searchParams.append(
+      "authed_user_token",
+      slackConnection.authedUserToken
+    );
+    redirectUrl.searchParams.append(
+      "slack_access_token",
+      slackConnection.slackAccessToken
+    );
+
+    return res.redirect(redirectUrl.toString());
+  } catch (error) {
+    console.error("Error: ", error);
+    return res.status(500).json({ message: "Slack server Error" });
+  }
+};
