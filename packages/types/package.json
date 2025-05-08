@@ -1,12 +1,16 @@
 {
-  "name": "types",
+  "name": "@repo/types",
   "version": "1.0.0",
   "description": "",
   "main": "index.js",
+  "exports": {
+    "./types": "./src/types.ts"
+  },
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "dependencies": {
+    "@clerk/express": "^1.4.12",
     "@repo/typescript-config": "workspace:*"
   },
   "keywords": [],

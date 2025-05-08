@@ -1,20 +1,16 @@
 import { Request, Response } from "express";
+
 import axios from "axios";
 import { prisma } from "@repo/database/prisma";
 import { URLSearchParams } from "url";
 import { Client as NotionClient } from "@notionhq/client";
-interface AuthenticatedRequest extends Request {
-  user?: {
-    userId: string;
-  };
-}
 
 export const discordCallBack = async (
-  req: AuthenticatedRequest,
+  req: Request,
   res: Response
-) => {
+): Promise<any> => {
   const code = req.query.code as string;
-  const userId = req.user?.userId;
+  const userId = req.body.userId;
 
   if (!code) {
     return res.status(400).json({ message: "No code provided!" });
@@ -87,17 +83,19 @@ export const discordCallBack = async (
 };
 
 export const notionCallback = async (
-  req: AuthenticatedRequest,
+  req: Request,
   res: Response
-) => {
+): Promise<void> => {
   const code = req.query.code as string;
-  const user = req.user?.userId;
+  const user = req.body.userId;
 
   if (!code) {
-    return res.status(400).json({ messge: "No code provided!" });
+    res.status(400).json({ messge: "No code provided!" });
+    return;
   }
   if (!user) {
-    return res.status(411).json({ message: "No user found!" });
+    res.status(411).json({ message: "No user found!" });
+    return;
   }
 
   try {
@@ -185,11 +183,11 @@ export const notionCallback = async (
 };
 
 export const slackCallback = async (
-  req: AuthenticatedRequest,
+  req: Request,
   res: Response
-) => {
+): Promise<any> => {
   const code = req.query.code as string;
-  const user = req.user?.userId;
+  const user = req.body.userId;
 
   if (!user) {
     return res.status(401).json({ message: "No user found!" });

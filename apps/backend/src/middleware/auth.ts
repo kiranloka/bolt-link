@@ -1,2 +1,4 @@
-import { authMiddleware } from "@clerk/express";
-export const auth = authMiddleware({ apiKey: process.env.CLERK_API_KEY });
+// clerkMiddleware.ts
+import { clerkClient, requireAuth } from "@clerk/express";
+
+export { clerkClient, requireAuth };
